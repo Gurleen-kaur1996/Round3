@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Task Manager</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f4f8;
+      padding: 30px;
+      max-width: 650px;
+      margin: auto;
+    }
+
+    h1 {
+      text-align: center;
+      color: #2d3748;
+      margin-bottom: 20px;
+    }
+
+    /* ── FORM ── */
+    .form-box {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      padding: 11px;
+      background: #e53e3e;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    button:hover { background: #c53030; }
+
+    /* ── TASK CARD ── */
+    .task {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      border-left: 5px solid #48bb78;
+    }
+
+    .task.high    { border-left-color: #e53e3e; }
+    .task.medium  { border-left-color: #ed8936; }
+    .task.low     { border-left-color: #48bb78; }
+
+    /* Overdue = red background */
+    .task.overdue { background: #fff5f5; }
+
+    /* Done = faded out */
+    .task.done    { opacity: 0.5; }
+    .task.done .task-title { text-decoration: line-through; }
+
+    .task-title { font-size: 1.05rem; font-weight: bold; color: #2d3748; }
+    .task-info  { font-size: 0.85rem; color: #718096; margin: 4px 0 10px; }
+
+    /* Countdown numbers */
+    .countdown {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      color: #2d3748;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .countdown.overdue-cd { color: #e53e3e; background: #fff5f5; }
+
+    .time-box {
+      text-align: center;
+      background: #edf2f7;
+      border-radius: 6px;
+      padding: 5px 10px;
+      min-width: 44px;
+    }
+    .time-box .num  { font-size: 1.1rem; font-weight: bold; }
+    .time-box .unit { font-size: 0.6rem; color: #a0aec0; }
+
+    .task-btns { display: flex; gap: 8px; margin-top: 10px; }
+    .task-btns button {
+      width: auto;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      border-radius: 6px;
+      margin: 0;
+    }
+    .btn-done   { background: #48bb78; }
+    .btn-delete { background: #e53e3e; }
+
+    #empty { text-align: center; color: #a0aec0; padding: 30px; font-size: 1rem; }
+  </style>
+</head>
+<body>
+
+  <h1>📋 Task Manager</h1>
+
+  <div class="form-box">
+    <input type="text"  id="title"  placeholder="Task to be completed.."/>
+    <input type="datetime-local" id="deadline"/>
+    <select id="priority">
+      <option value="high">🔴 High Priority</option>
+      <option value="medium">🟡 Medium Priority</option>
+      <option value="low">🟢 Low Priority</option>
+    </select>
+    <button onclick="addTask()">+ ADD TASK </button>
+  </div>
+
+  <div id="taskList"></div>
+<div id="empty">Task will be added by Gurleen.....</div>
+  </div>
+
+<script>
+var tasks = [];
+
+
+// ── LOAD TASKS FROM BACKEND ─────────────────────────────
+function loadTasks() {
+  fetch("/api/tasks")
+    .then(res => res.json())
+    .then(data => {
+      tasks = data.tasks.map(t => ({
+        id: t.id,
+        title: t.name,
+        deadline: new Date(t.deadline),
+        priority: t.priority,
+        done: t.done
+      }));
+      renderTasks();
+    });
+}
+
+
+// ── ADD TASK ─────────────────────────────────────────────
+function addTask() {
+  var title    = document.getElementById('title').value.trim();
+  var deadline = document.getElementById('deadline').value;
+  var priority = document.getElementById('priority').value;
+
+  if (!title || !deadline) {
+    alert("Please fill all fields");
+    return;
+  }
+
+  fetch("/api/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: title,
+      deadline: deadline,
+      priority: priority
+    })
+  })
+  .then(res => res.json())
+  .then(() => {
+    document.getElementById('title').value = "";
+    document.getElementById('deadline').value = "";
+    loadTasks();
+  });
+}
+
+
+// ── DELETE TASK ───────────────────────────────────────────
+function deleteTask(id) {
+  fetch("/api/tasks/" + id, { method: "DELETE" })
+    .then(res => res.json())
+    .then(() => loadTasks());
+}
+
+
+// ── MARK DONE / UNDO ─────────────────────────────────────
+function markDone(id, currentStatus) {
+  fetch("/api/tasks/" + id, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ done: !currentStatus })
+  })
+  .then(res => res.json())
+  .then(() => loadTasks());
+}
+
+
+// ── CHECK OVERDUE ────────────────────────────────────────
+function isOverdue(task) {
+  return !task.done && new Date() > task.deadline;
+}
+
+
+// ── TIME LEFT ────────────────────────────────────────────
+function timeLeft(deadline) {
+  var diff = deadline - new Date();
+  if (diff <= 0) return null;
+
+  return {
+    days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+    hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
+    minutes: Math.floor((diff / (1000 * 60)) % 60),
+    seconds: Math.floor((diff / 1000) % 60)
+  };
+}
+
+
+// ── SORT TASKS ───────────────────────────────────────────
+function getSortedTasks() {
+  return tasks.slice().sort((a, b) => a.deadline - b.deadline);
+}
+
+
+// ── RENDER TASKS (FIXED) ─────────────────────────────────
+function renderTasks() {
+  var list = getSortedTasks();
+  var container = document.getElementById('taskList');
+
+  if (list.length === 0) {
+    container.innerHTML = '<div id="empty">No tasks yet</div>';
+    return;
+  }
+
+  var html = '';
+
+  list.forEach(function(task) {
+
+    var over = isOverdue(task);
+    var tl   = timeLeft(task.deadline);
+
+    var cls = 'task ' + task.priority;
+    if (over) cls += ' overdue';
+    if (task.done) cls += ' done';
+
+    var cdHtml = '';
+
+    if (task.done) {
+      cdHtml = '<div class="countdown">✅ Completed</div>';
+
+    } else if (over) {
+      cdHtml = '<div class="countdown overdue-cd">⚠️ Overdue!</div>';
+
+    } else if (tl) {
+      cdHtml =
+        '<div class="countdown">' +
+        box(tl.days, 'days') +
+        box(tl.hours, 'hrs') +
+        box(tl.minutes, 'min') +
+        box(tl.seconds, 'sec') +
+        '<span>remaining</span>' +
+        '</div>';
+    }
+
+    html +=
+      '<div class="' + cls + '">' +
+      '<div class="task-title">' + task.title + '</div>' +
+      '<div class="task-info">' +
+      '📅 ' + task.deadline.toLocaleString() +
+      ' | ' + task.priority.toUpperCase() +
+      '</div>' +
+      cdHtml +
+      '<div class="task-btns">' +
+      '<button class="btn-done" onclick="markDone(\'' + task.id + '\',' + task.done + ')">' +
+      (task.done ? 'Undo' : '✔ Done') +
+      '</button>' +
+      '<button class="btn-delete" onclick="deleteTask(\'' + task.id + '\')">🗑 Delete</button>' +
+      '</div>' +
+      '</div>';
+  });
+
+  container.innerHTML = html;
+}
+
+
+// ── COUNTDOWN BOX ────────────────────────────────────────
+function box(val, unit) {
+  return '<div class="time-box">' +
+         '<div class="num">' + pad(val) + '</div>' +
+         '<div class="unit">' + unit + '</div>' +
+         '</div>';
+}
+
+
+function pad(n) {
+  return String(n).padStart(2, '0');
+}
+
+
+// ── LIVE REFRESH EVERY SECOND ────────────────────────────
+setInterval(loadTasks, 1000);
+
+
+// ── ENTER KEY SUPPORT ────────────────────────────────────
+document.getElementById('title').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') addTask();
+});
+
+
+// ── LOAD WHEN PAGE OPENS ─────────────────────────────────
+loadTasks();
+
+</script>
+</body>
+</html>
